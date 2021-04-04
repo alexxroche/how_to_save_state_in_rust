@@ -1,3 +1,4 @@
+N.B. Do NOT use this as an example of good code. (Probably full of bad habits!)
 # Harnessing the power of Cunningham's Law I thought that I would publish:
 
 ```bash
