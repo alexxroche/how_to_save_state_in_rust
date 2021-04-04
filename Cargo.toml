@@ -1,0 +1,19 @@
+[package]
+name = "how_to_save_state_in_rust"
+version = "0.1.0"
+authors = ["Alexx Roche <notice-dev@alexx.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["unbounded_depth"] }
+serde_stacker = "0.1"
+
+# for logging
+chrono = "0.4"
+
+# for last_gasp
+signal-hook = "0.1.16"
+
