@@ -1,6 +1,8 @@
+use crate::last_gasp::{clear_sig, get_sig, is_sig, last_gasp};
 use crate::log::info_n;
-use crate::our_data::st_or_to_disk::fetch_st;
+use crate::our_data::st_or_to_disk::{fetch_st, store_st};
 use crate::our_data::ST;
+use std::convert::TryInto;
 use std::error::Error;
 use std::fs;
 use std::{io, io::prelude::*}; // fn step()
@@ -17,6 +19,18 @@ mod log;
 mod our_data;
 mod work;
 
+// Define what to do with each signal
+fn process_signal(st: &ST) -> () {
+    match get_sig() {
+        1 | 15 => {
+            store_st(st);
+            // clear the signal
+            clear_sig();
+        }
+        sig => last_gasp(sig.try_into().unwrap(), st),
+    };
+}
+
 pub fn run() -> Result<(), Box<dyn Error>> {
     // import saved state if it exists
     let mut st: ST = fetch_st();
@@ -24,12 +38,17 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 
     // hook in the last_gasp function to capture
     //  and process any process Signals
-    //  VVVVVVVVVVVVVVVVVVVVVV This is the part we are thinking about
-    let _ = crate::last_gasp::hook(&mut st);
+    let _ = crate::last_gasp::hook();
 
     // do something work that takes a very long time
     // that we may need to interrupt and restart
     Ok(while depth < 1000 {
+        // check if a signal has been received
+        match is_sig() {
+            true => process_signal(&st),
+            _ => (),
+        }
+
         print!(".");
         wait_to_simulate_lots_of_work();
         crate::work::solve(&mut st);

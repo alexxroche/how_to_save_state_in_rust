@@ -1,19 +1,45 @@
-// listen for the kill signals
 extern crate signal_hook;
 use crate::our_data::st_or_to_disk::store_st;
 use crate::ST;
 use signal_hook::{iterator::Signals, SIGHUP, SIGINT, SIGQUIT, SIGTERM};
 use std::error::Error;
-use std::ptr::NonNull;
 use std::thread;
 
-unsafe impl core::marker::Send for ST {}
-// evil code just to make last_gasp work
-struct Wrapper(NonNull<ST>);
-unsafe impl std::marker::Send for Wrapper {}
+use std::sync::atomic::{AtomicBool, AtomicI32, Ordering};
+
+pub static SV: AtomicI32 = AtomicI32::new(0);
+pub static TRAFFIC_LIGHT: AtomicBool = AtomicBool::new(false);
+
+/// clear_sig after signal has been processed
+pub fn clear_sig() -> () {
+    // no need to clear the actual SV
+    set_tl(false)
+}
+
+fn set_tl(v: bool) {
+    TRAFFIC_LIGHT.store(v, Ordering::Relaxed);
+    //make_fds_true();
+}
+/// is_sig shows if there is a signal waiting to be processed
+pub fn is_sig() -> bool {
+    TRAFFIC_LIGHT.load(Ordering::Relaxed)
+}
+/// get_sig gets the most recent signal
+pub fn get_sig() -> i32 {
+    SV.load(Ordering::Relaxed)
+}
+
+/*
+thread_local! {
+    pub static CURRENT_SIGNAL: RwLock<Arc<SignalValue>> = RwLock::new(Default::default());
+    pub static FDS: RwLock<bool> = RwLock::new(false);
+}
+*/
 
 /// This is triggered by the Signals::
-fn last_gasp(sig: i32, st: &ST) -> () {
+pub fn last_gasp(sig: i32, st: &ST) -> () {
+    // this should take a function as an argument so that
+    // this can be an external crate
     println!("Writing current ST to disk");
     store_st(&st);
     // write board_to_html while we are at it
@@ -21,28 +47,17 @@ fn last_gasp(sig: i32, st: &ST) -> () {
     std::process::exit(sig);
 }
 
-pub fn hook(st: &mut ST) -> Result<(), Box<dyn Error>> {
-    // START last_gasp hook
+/// hook to trap signals
+pub fn hook() -> Result<(), Box<dyn Error>> {
     let signals = Signals::new(&[SIGINT, SIGHUP, SIGTERM, SIGQUIT])?;
-
-    // lets stick a raw pointer to ST "in our back pocket" just in case the main
-    // thread is sent a Signal (such as Ctrl+c or kill -HUP $pid)
-    let st_ptr: *mut ST = st; // this can not be safely passed to a thread
-
-    let b = Wrapper(NonNull::new(st_ptr).unwrap()); // but this can!
     thread::spawn(move || {
         for sig in signals.forever() {
-            let ptr = b.0.as_ptr();
-            match sig {
-                // 2 := Ctrl+c, 15 := -HUP
-                // if we get a HUP then make a rapid backup of our data
-                1 | 15 => unsafe { store_st(&(*ptr)) },
-                // any other Signal causes use to attempt to make a backup and quit
-                _ => unsafe { last_gasp(sig, &(*ptr)) },
-            };
+            // set the signal
+            SV.store(sig, Ordering::SeqCst);
+            // flag the system to read the new signal
+            set_tl(true);
         }
     });
     Ok(())
-    //end of "evil" trap for signals; nothing to see here, lets get on with the actual work.
     //END last_gasp
 }
