@@ -119,8 +119,6 @@ impl ST {
         };
     }
 
-    // used for testing
-    #[allow(dead_code)]
     fn add_st(&mut self, child: ST) {
         match &mut self.c {
             None => {
@@ -279,11 +277,14 @@ pub fn solve(st: &mut ST) -> () {
         md if md % 2 == 0 => 0,
         _ => 1,
     };
-    let new_node = vec![ST {
+    let new_node = ST {
         v: Some((max_depth, polarity)),
         c: None,
-    }];
-    st.add_child(new_node);
+    };
+    match polarity {
+        0 => st.add_st(new_node),
+        _ => st.add_child(vec![new_node]),
+    };
     println!(": {:?}", max_depth);
 }
 
