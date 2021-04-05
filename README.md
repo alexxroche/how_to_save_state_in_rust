@@ -32,6 +32,8 @@ create persistence between runs.
 * The questionable crate layout
 * The ST struct
 * The "work" being done.
+* Can't use a database because that would be adding a bottleneck
+* Can't write to disk with every work loop because the disk IO tanks performance
 
 ## How you can help: [forks! Forks everywhere]
 
