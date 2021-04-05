@@ -62,6 +62,35 @@ impl ST {
             None => 0,
         }
     }
+
+    #[allow(dead_code)]
+    pub fn dumper(&self) {
+        &self.dump_loop(1_usize);
+    }
+
+    #[allow(dead_code)]
+    pub fn dump(&self) {
+        &self.dump_loop(0_usize);
+    }
+
+    fn dump_loop(&self, depth: usize) {
+        match &self.v {
+            Some(v) => match depth {
+                0 => eprintln!("{}{:?}", "".repeat(depth), v),
+                _ if depth >= 1 => eprintln!("{}{:?}", "\t".repeat(depth - 1), v),
+                _ => (),
+            },
+            None => (),
+        }
+        match &self.c {
+            Some(c) => {
+                for e in c.iter() {
+                    e.dump_loop(depth + 1);
+                }
+            }
+            None => (),
+        }
+    }
 }
 
 #[derive(Debug)]
