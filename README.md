@@ -1,5 +1,6 @@
 N.B. Do NOT use this as an example of good code. (Probably full of bad habits!)
-# Harnessing the power of Cunningham's Law I thought that I would publish:
+# Harnessing the power of Cunningham's Law 
+# I thought that I would publish:
 
 ```bash
 "How to save state in rust"
@@ -35,9 +36,6 @@ create persistence between runs.
 * Can't use a database because that would be adding a bottleneck
 * Can't write to disk with every work loop because the disk IO tanks performance
 
-## How you can help: [forks! Forks everywhere]
+## Suggestions and varations are welcome
 
-* fork
-* create a new branch with your name on it
-* implement your version
-* pull request (and I'll try to create a new branch with your name on it.)
+I'll try to have a new branch for each approach.
