@@ -30,24 +30,13 @@ pub fn err<T: std::fmt::Display>(msg: T) -> () {
 
 use serde::{Deserialize, Serialize};
 use std::convert::TryInto;
-use std::default::Default;
+//use std::default::Default;
 use std::error::Error;
 use std::fs::{self, File, OpenOptions}; //self: mkdir; File: read; OpenOptions: write
 use std::io::{self, Read, Write};
-use std::{io::prelude::*, thread, time}; // fn step()
+use std::{thread, time}; // logging
 
-// listen for the kill signals
-//use std::thread;
-extern crate signal_hook;
-use signal_hook::{iterator::Signals, SIGHUP, SIGINT, SIGQUIT, SIGTERM};
-use std::ptr::NonNull;
-
-unsafe impl core::marker::Send for ST {}
-// evil code just to make last_gasp work
-struct Wrapper(NonNull<ST>);
-unsafe impl std::marker::Send for Wrapper {}
-
-/// This is triggered by the Signals::
+/// This is triggered by the destructor being about to drop our values
 fn last_gasp(sig: i32, st: &ST) -> () {
     println!("Writing current ST to disk");
     store_st(&st);
@@ -94,9 +83,23 @@ pub struct ST {
     pub c: Option<Vec<ST>>,   // children
 }
 
+/*
+// because we have impl Drop for ST
+// "cannot move out of type `ST`, which implements the `Drop` trait"
+// this no longer works
 impl Default for ST {
     fn default() -> Self {
         ST { v: None, c: None }
+    }
+}
+*/
+
+// we can ensure that ST is written to disk
+// before being dropped
+impl Drop for ST {
+    fn drop(&mut self) {
+        println!("Last chance to save ST before it is dropped from memeory!");
+        last_gasp(2_i32, &self);
     }
 }
 
@@ -107,7 +110,8 @@ impl ST {
 
     // let mut st = ST { ..ST::default() };
     pub fn new() -> ST {
-        ST { ..ST::default() }
+        //ST { ..ST::default() } // cannot move out of type `ST`, which implements the `Drop` trait
+        ST { v: None, c: None }
     }
 
     pub fn add_child(&mut self, child: Vec<ST>) {
@@ -151,7 +155,6 @@ impl ST {
 pub struct STItem(Vec<u16>, Vec<(u16, u8)>); // does this have to be a Vec or can one or both be an array?
 
 impl Iterator for ST {
-    //type Item = (Vec<u16>, Vec<(u16, u8)>); //abstract that for use in the other Iterators
     type Item = STItem;
     fn next(&mut self) -> Option<Self::Item> {
         let mut board: Vec<(u16, u8)> = vec![]; //empty board; we skip the root node because it just exists to hold all of the first pieces
@@ -172,8 +175,6 @@ impl Iterator for ST {
                     //ST {Some(v),Some(c) } => self.v.unwrap(),
                     _ => 0,
                 };
-                //self.c = Some(children[1..].to_vec());  // cannot assign to `self.c` because it is borrowed
-                //self.v = *(children)[0].v;
                 self.v = Some((children)[0].v.unwrap());
                 vec![step_on_the_path.try_into().unwrap()]
             }
@@ -243,7 +244,6 @@ pub fn fetch_st() -> ST {
             "ST.serde {:?} not found (Is this a first run?)",
             &cfg_dir
         ));
-        step();
     }
     // generate a new ST if we didn't find a valid one on disk
     ST::new()
@@ -257,17 +257,6 @@ fn wait_to_simulate_lots_of_work() {
 // check if file or directory exists
 pub fn path_exists(path: &str) -> bool {
     fs::metadata(path).is_ok()
-}
-
-// add a breakpoint for testing
-pub fn step() -> () {
-    info_n("[press Enter to continue] ");
-    let stdin = io::stdin();
-    'step: for line in stdin.lock().lines() {
-        match line.unwrap() {
-            _ => break 'step,
-        };
-    }
 }
 
 pub fn solve(st: &mut ST) -> () {
@@ -292,37 +281,6 @@ pub fn main() -> Result<(), Box<dyn Error>> {
     // import saved state if it exists
     let mut st: ST = fetch_st();
     let mut depth = st.len();
-
-    // hook in the last_gasp function to capture
-    //  and process any process Signals
-    //  VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-    //  VVVVVVVVVV This is the part we are thinking about VVVVVVVVVVVVV
-    //  VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-    // START last_gasp hook
-    let signals = Signals::new(&[SIGINT, SIGHUP, SIGTERM, SIGQUIT])?;
-
-    // lets stick a raw pointer to ST "in our back pocket" just in case the main
-    // thread is sent a Signal (such as Ctrl+c or kill -HUP $pid)
-    let st_ptr: *mut ST = &mut st; // this can not be safely passed to a thread
-
-    let b = Wrapper(NonNull::new(st_ptr).unwrap()); // but this can!
-    thread::spawn(move || {
-        for sig in signals.forever() {
-            let ptr = b.0.as_ptr();
-            match sig {
-                // 2 := Ctrl+c, 15 := -HUP
-                // if we get a HUP then make a rapid backup of our data
-                1 | 15 => unsafe { store_st(&(*ptr)) },
-                // any other Signal causes use to attempt to make a backup and quit
-                _ => unsafe { last_gasp(sig, &(*ptr)) },
-            };
-        }
-    });
-    //end of "evil" trap for signals; nothing to see here, lets get on with the actual work.
-    //END last_gasp
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-    // ^^^^^^ This can't be the best way to do this ^^^^^^^^^^^^^^^^^
-    // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
     // do something work that takes a very long time
     // that we may need to interrupt and restart
