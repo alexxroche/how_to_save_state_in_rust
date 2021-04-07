@@ -1,6 +1,6 @@
 [package]
 name = "how_to_save_state_in_rust"
-version = "0.1.0"
+version = "0.1.2"
 authors = ["Alexx Roche <notice-dev@alexx.net>"]
 edition = "2018"
 
